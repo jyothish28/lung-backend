@@ -1,78 +1,62 @@
 const express = require("express");
-
 const router = express.Router();
-
 const multer = require("multer");
-
 const axios = require("axios");
-
 const FormData = require("form-data");
-
 const Prediction = require("../models/prediction");
 
 const upload = multer();
 
 router.post("/", upload.single("image"), async (req, res) => {
 
-try {
+  try {
 
-const formData = new FormData();
+    if (!req.file) {
+      return res.status(400).json({ error: "No image uploaded" });
+    }
 
-formData.append(
+    const formData = new FormData();
 
-"file",
+    formData.append(
+      "file",
+      req.file.buffer,
+      req.file.originalname
+    );
 
-req.file.buffer,
+    const response = await axios.post(
+      process.env.ML_API_URL,
+      formData,
+      {
+        headers: formData.getHeaders()
+      }
+    );
 
-req.file.originalname
+    const result = response.data;
 
-);
+    const newPrediction = new Prediction({
+      imageName: req.file.originalname,
+      disease: result.disease,
+      confidence: result.confidence,
+      suggestion: result.suggestion
+    });
 
-const response = await axios.post(
+    await newPrediction.save();
 
-process.env.ML_API_URL,
+    res.json(result);
 
-formData,
+  } catch (error) {
 
-{
+    console.error("Prediction error:", error.message);
 
-headers: formData.getHeaders()
+    if (error.response) {
+      console.error(error.response.data);
+    }
 
-}
+    res.status(500).json({
+      error: "Prediction failed"
+    });
 
-);
-
-const result = response.data;
-
-const newPrediction = new Prediction({
-
-imageName: req.file.originalname,
-
-disease: result.disease,
-
-confidence: result.confidence,
-
-suggestion: result.suggestion
-
-});
-
-await newPrediction.save();
-
-res.json(result);
-
-}
-
-catch(error){
-
-console.log(error);
-
-res.status(500).json({
-
-error:"Prediction failed"
-
-});
-
-}
+  }
 
 });
 
