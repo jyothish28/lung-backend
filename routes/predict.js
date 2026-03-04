@@ -49,7 +49,7 @@ router.post("/", upload.single("image"), async (req, res) => {
     console.error("Prediction error:", error.message);
 
     if (error.response) {
-      console.error(error.response.data);
+      console.error("ML API Error:", error.response.data);
     }
 
     res.status(500).json({
