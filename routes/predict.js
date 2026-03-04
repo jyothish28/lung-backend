@@ -1,78 +1,72 @@
 const express = require("express");
-
 const router = express.Router();
-
 const multer = require("multer");
-
 const axios = require("axios");
-
 const FormData = require("form-data");
-
 const Prediction = require("../models/prediction");
 
 const upload = multer();
 
 router.post("/", upload.single("image"), async (req, res) => {
 
-try {
+  try {
 
-const formData = new FormData();
+    if (!req.file) {
+      return res.status(400).json({ error: "No image uploaded" });
+    }
 
-formData.append(
+    console.log("Image received:", req.file.originalname);
 
-"file",
+    const formData = new FormData();
 
-req.file.buffer,
+    formData.append(
+      "file",
+      req.file.buffer,
+      req.file.originalname
+    );
 
-req.file.originalname
+    console.log("Sending to ML API:", process.env.ML_API_URL);
 
-);
+    const response = await axios.post(
+      process.env.ML_API_URL,
+      formData,
+      {
+        headers: {
+          ...formData.getHeaders()
+        },
+        maxContentLength: Infinity,
+        maxBodyLength: Infinity
+      }
+    );
 
-const response = await axios.post(
+    const result = response.data;
 
-process.env.ML_API_URL,
+    console.log("ML API Response:", result);
 
-formData,
+    const newPrediction = new Prediction({
+      imageName: req.file.originalname,
+      disease: result.disease,
+      confidence: result.confidence,
+      suggestion: result.suggestion
+    });
 
-{
+    await newPrediction.save();
 
-headers: formData.getHeaders()
+    res.json(result);
 
-}
+  } catch (error) {
 
-);
+    console.error("Prediction error:", error.message);
 
-const result = response.data;
+    if (error.response) {
+      console.error("ML API Error:", error.response.data);
+    }
 
-const newPrediction = new Prediction({
+    res.status(500).json({
+      error: "Prediction failed"
+    });
 
-imageName: req.file.originalname,
-
-disease: result.disease,
-
-confidence: result.confidence,
-
-suggestion: result.suggestion
-
-});
-
-await newPrediction.save();
-
-res.json(result);
-
-}
-
-catch(error){
-
-console.log(error);
-
-res.status(500).json({
-
-error:"Prediction failed"
-
-});
-
-}
+  }
 
 });
 
