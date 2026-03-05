@@ -5,7 +5,10 @@ const axios = require("axios");
 const FormData = require("form-data");
 const Prediction = require("../models/prediction");
 
-const upload = multer();
+// Use memory storage (important)
+const upload = multer({
+  storage: multer.memoryStorage()
+});
 
 router.post("/", upload.single("image"), async (req, res) => {
 
@@ -17,6 +20,7 @@ router.post("/", upload.single("image"), async (req, res) => {
 
     console.log("Image received:", req.file.originalname);
 
+    // Prepare form data for ML API
     const formData = new FormData();
 
     formData.append(
@@ -32,7 +36,8 @@ router.post("/", upload.single("image"), async (req, res) => {
       formData,
       {
         headers: {
-          ...formData.getHeaders()
+          ...formData.getHeaders(),
+          "Content-Type": "multipart/form-data"
         },
         maxContentLength: Infinity,
         maxBodyLength: Infinity
@@ -43,6 +48,7 @@ router.post("/", upload.single("image"), async (req, res) => {
 
     console.log("ML API Response:", result);
 
+    // Save prediction to database
     const newPrediction = new Prediction({
       imageName: req.file.originalname,
       disease: result.disease,
@@ -60,10 +66,12 @@ router.post("/", upload.single("image"), async (req, res) => {
 
     if (error.response) {
       console.error("ML API Error:", error.response.data);
+      return res.status(500).json(error.response.data);
     }
 
     res.status(500).json({
-      error: "Prediction failed"
+      error: "Prediction failed",
+      message: error.message
     });
 
   }
